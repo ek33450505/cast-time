@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "id": "cast-time-context",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/scripts/cast-time-context-hook.sh",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}
