@@ -61,12 +61,12 @@ print(ctx)
 # Test 4: Semantic bucket edge cases
 # ---------------------------------------------------------------------------
 @test "semantic bucket edge cases" {
-  skip "requires faketime — TODO: extract bucket logic into helper for direct testing"
+  skip "requires faketime — tracked: https://github.com/ek33450505/cast-time/issues/1"
 }
 
 # ---------------------------------------------------------------------------
 # Test 5: Weekend vs weekday detection
 # ---------------------------------------------------------------------------
 @test "weekend vs weekday detection" {
-  skip "requires date manipulation — TODO: extract day-type logic into helper for direct testing"
+  skip "requires date manipulation — tracked: https://github.com/ek33450505/cast-time/issues/2"
 }
