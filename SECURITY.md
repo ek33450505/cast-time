@@ -15,7 +15,7 @@ Report privately using [GitHub Security Advisories](https://github.com/ek3345050
 
 ### What to Include
 
-- **Version** — output of `cat ~/Projects/personal/cast-time/VERSION`
+- **Version** — output of `cat VERSION` (from the repo root) or `brew info cast-time`
 - **Operating system** — macOS version (e.g., `sw_vers`)
 - **Which file** — e.g., `install.sh`, `scripts/cast-time-context-hook.sh`
 - **Steps to reproduce** — minimal, clear reproduction steps

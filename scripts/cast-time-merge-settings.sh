@@ -67,7 +67,7 @@ with open(os.environ["USER_SETTINGS"]) as f:
 with open(os.environ["HOOKS_SETTINGS"]) as f:
     hooks = json.load(f)
 
-# Merge hooks: add/update the Stop event entry by id
+# Merge hooks: add/update the SessionStart event entry by id
 if "hooks" not in user:
     user["hooks"] = {}
 
