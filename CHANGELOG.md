@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.1.2] — 2026-07-01
+
+- chore: v9 ecosystem sync — version bump for the CAST v9 ecosystem consolidation (repo is already v9-clean; no behavior change).
+
 ## [0.1.1] — 2026-06-05
 
 - docs: refresh CAST ecosystem stats to 23 agents / 1171 tests / 38 tables (devto-article-draft.md)
