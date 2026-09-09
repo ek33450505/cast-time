@@ -25,9 +25,42 @@ Timezone: EDT (UTC-4)
 Day type: weekday
 Time of day: afternoon
 Session started: 2026-05-05T17:49:00Z (epoch: 1746467340)
+
+Date anchors (use these directly; do not compute offsets):
+- Yesterday: 2026-05-04 (Monday)
+- Tomorrow: 2026-05-06 (Wednesday)
+- This week: 2026-05-04 (Mon) to 2026-05-10 (Sun), ISO 2026-W19
+- Last week: 2026-04-27 to 2026-05-03
+- This month: May 2026 ends 2026-05-31 (26 days remaining)
+- This quarter: Q2 2026 (2026-04-01 to 2026-06-30), 56 days remaining
 ```
 
-That's it — no rules to learn, no slash commands, no behavior changes. Claude just knows the time.
+The anchors are absolute dates so relative references never have to be computed
+in-head — the arithmetic is done once, correctly, instead of being re-derived
+per question.
+
+## Staying correct in long sessions
+
+The block above is injected once, at session start. A session that opens at
+18:08 and is still running past midnight would otherwise carry
+"Wednesday / evening" for hours after both stopped being true — and anything
+that derives a date from it (a dated note, a journal filename) records the
+wrong day without ever looking wrong.
+
+A second hook, `cast-time-drift-hook.sh`, runs on `UserPromptSubmit` and stays
+silent on virtually every prompt. It re-injects only when:
+
+- the local **date has rolled over** — and says so explicitly, so earlier dated
+  output in the same session can be recognised as wrong; or
+- **`CAST_TIME_DRIFT_SECONDS`** (default `10800`, 3h) has elapsed since the last
+  injection, so the time-of-day bucket cannot silently go stale.
+
+It also reports **session elapsed**, measured from the real session start.
+
+| Variable | Default | Effect |
+|---|---|---|
+| `CAST_TIME_DRIFT_SECONDS` | `10800` | Seconds before a same-day re-injection |
+| `CAST_TIME_STATE_DIR` | `~/.claude/.cast-time` | Where per-session state is kept |
 
 ## Manual install (without Homebrew)
 
@@ -53,9 +86,17 @@ bash uninstall.sh
 
 ## How it works
 
-A SessionStart hook runs `cast-time-context-hook.sh` at session open. The script uses `date` and `python3 json.dumps` — no network, no external deps, no telemetry. It emits a `hookSpecificOutput.additionalContext` block consumed by the Claude Code harness and injected into the model's context exactly once per session.
+A SessionStart hook runs `cast-time-context-hook.sh` at session open. The script uses `date` and `python3 json.dumps` — no network, no external deps, no telemetry. It emits a `hookSpecificOutput.additionalContext` block consumed by the Claude Code harness and injected into the model's context.
 
-The hook id `cast-time-context` is registered in `~/.claude/settings.json` under `hooks.SessionStart`. The installer backs up your settings.json before merging.
+A UserPromptSubmit hook runs `cast-time-drift-hook.sh` on each prompt. It reads a
+small per-session state file (`START_EPOCH|LAST_EPOCH|LAST_DATE`) and exits 0
+silently unless the date rolled over or the drift window elapsed. Date
+arithmetic is done in Python from the epoch rather than with `date -v` / `date -d`,
+which diverge between BSD and GNU.
+
+The hook ids `cast-time-context` and `cast-time-drift` are registered in
+`~/.claude/settings.json` under `hooks.SessionStart` and `hooks.UserPromptSubmit`.
+The installer backs up your settings.json before merging.
 
 ## Why
 
