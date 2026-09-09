@@ -1,0 +1,135 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          severity: error
+
+  syntax:
+    name: bash -n syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          set -e
+          for f in install.sh uninstall.sh scripts/*.sh; do
+            echo "  syntax: $f"
+            bash -n "$f"
+          done
+
+  python-compat:
+    name: embedded python / 3.9
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      - name: Compile embedded python under the oldest supported interpreter
+        # The hooks embed Python via `python3 -c '...'` and run against whatever
+        # python3 is on PATH — which on a stock macOS is 3.9. A nested quote
+        # inside an f-string parses only on 3.12+ (PEP 701), and the failure is
+        # SWALLOWED at runtime (`python3 ... || _log_error`), so the hook exits 0
+        # and silently emits nothing. ast.parse(feature_version=(3,9)) does NOT
+        # catch this — f-string tokenization is not downgraded by that flag — so
+        # this gate must run a real 3.9 interpreter.
+        run: |
+          python - <<'PY'
+          import pathlib, sys
+
+          failed, checked = [], 0
+          for p in sorted(pathlib.Path("scripts").glob("*.sh")):
+              s = p.read_text()
+              for i, seg in enumerate(s.split("python3 -c '")[1:]):
+                  block = seg.split("\n'")[0]
+                  checked += 1
+                  try:
+                      compile(block, f"{p.name}:block{i}", "exec")
+                      print(f"  ok   {p.name} block {i}")
+                  except SyntaxError as e:
+                      failed.append(f"{p.name} block {i}: {e.msg} (line {e.lineno})")
+                      print(f"  FAIL {p.name} block {i}: {e.msg}")
+
+          # A scanner that finds nothing must not report success: if the embedding
+          # style changes, this gate would otherwise pass while checking nothing.
+          if checked == 0:
+              sys.exit("found no embedded python blocks — the extraction is stale")
+          print(f"  checked {checked} embedded block(s)")
+          if failed:
+              sys.exit("embedded python fails on this interpreter:\n  " + "\n  ".join(failed))
+          PY
+
+  bats:
+    name: bats / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    # A hook that wrongly reads stdin makes tests BLOCK rather than fail, so an
+    # unbounded job would sit on a runner until the workflow-level timeout.
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install BATS
+        run: |
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            brew install bats-core
+          else
+            sudo apt-get update && sudo apt-get install -y bats
+          fi
+      - name: Run BATS
+        run: bats tests/
+
+  install-roundtrip:
+    name: install.sh round-trip
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install + uninstall round-trip
+        run: |
+          set -e
+          bash install.sh --yes
+          test -f "$HOME/.claude/scripts/cast-time-context-hook.sh"
+          test -f "$HOME/.claude/scripts/cast-time-drift-hook.sh"
+          # Both hook ids must be REGISTERED, not merely copied to disk — a
+          # script on disk that no settings entry points at never runs.
+          python3 - <<'PY'
+          import json, os, sys
+          s = json.load(open(os.path.expanduser("~/.claude/settings.json")))
+          ids = {e.get("id") for v in s.get("hooks", {}).values() for e in v}
+          missing = {"cast-time-context", "cast-time-drift"} - ids
+          if missing:
+              sys.exit(f"missing hook ids after install: {missing}")
+          print("  both hook ids registered")
+          PY
+          bash uninstall.sh
+          test ! -f "$HOME/.claude/scripts/cast-time-context-hook.sh"
+          test ! -f "$HOME/.claude/scripts/cast-time-drift-hook.sh"
+          # Deregistration is the other half of the round-trip: leaving a hook id
+          # pointing at a deleted script is a broken hook, not a clean uninstall.
+          python3 - <<'PY'
+          import json, os, sys
+          p = os.path.expanduser("~/.claude/settings.json")
+          s = json.load(open(p))
+          ids = {e.get("id") for v in s.get("hooks", {}).values() for e in v}
+          left = {"cast-time-context", "cast-time-drift"} & ids
+          if left:
+              sys.exit(f"hook ids still registered after uninstall: {left}")
+          print("  both hook ids deregistered")
+          PY

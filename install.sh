@@ -47,8 +47,15 @@ else
   _fail "Could not copy hook script"
 fi
 
+if cp "${REPO_DIR}/scripts/cast-time-drift-hook.sh" "${SCRIPTS_DIR}/cast-time-drift-hook.sh"; then
+  chmod 750 "${SCRIPTS_DIR}/cast-time-drift-hook.sh"
+  _ok "cast-time-drift-hook.sh → ~/.claude/scripts/"
+else
+  _fail "Could not copy drift hook script"
+fi
+
 # Step 3: Merge hook settings
-_step "Registering SessionStart hook..."
+_step "Registering SessionStart + UserPromptSubmit hooks..."
 MERGE_SCRIPT="${REPO_DIR}/scripts/cast-time-merge-settings.sh"
 if [ -f "$MERGE_SCRIPT" ]; then
   if [ "${1:-}" = "--yes" ] || [ "${CI:-}" = "true" ]; then

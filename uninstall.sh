@@ -21,8 +21,10 @@ CLAUDE_DIR="${HOME}/.claude"
 
 # Remove hook script
 _step "Removing hook script..."
+rm -f "${CLAUDE_DIR}/scripts/cast-time-drift-hook.sh" 2>/dev/null || true
+rm -rf "${CLAUDE_DIR}/.cast-time" 2>/dev/null || true
 if rm -f "${CLAUDE_DIR}/scripts/cast-time-context-hook.sh"; then
-  _ok "removed cast-time-context-hook.sh"
+  _ok "removed cast-time-context-hook.sh + cast-time-drift-hook.sh"
 fi
 
 # Remove hook from settings.json
@@ -45,7 +47,7 @@ with open(settings_path) as f:
     s = json.load(f)
 hooks = s.get("hooks", {})
 for event in list(hooks.keys()):
-    hooks[event] = [h for h in hooks[event] if h.get("id") != "cast-time-context"]
+    hooks[event] = [h for h in hooks[event] if h.get("id") not in ("cast-time-context", "cast-time-drift")]
     if not hooks[event]:
         del hooks[event]
 if hooks:
