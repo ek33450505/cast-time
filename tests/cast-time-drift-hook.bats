@@ -132,10 +132,29 @@ _seed() { # $1=start_epoch $2=last_epoch $3=last_date
 
 @test "a session_id containing path separators cannot escape the state dir" {
   EVIL='{"session_id":"../../../../etc/passwd"}'
+  PARENT="$(dirname "$CAST_TIME_STATE_DIR")"
+  mkdir -p "$CAST_TIME_STATE_DIR"
+  BEFORE="$(ls -A "$PARENT" | sort)"
+
   run bash -c "printf '%s' '$EVIL' | bash '$SCRIPT'"
   [ "$status" -eq 0 ]
-  # Every file created must live directly inside the state dir.
+
+  # Nothing appeared outside the state dir.
+  AFTER="$(ls -A "$PARENT" | sort)"
+  [ "$BEFORE" = "$AFTER" ]
+
+  # Nothing nested itself below the state dir.
   run find "$CAST_TIME_STATE_DIR" -mindepth 2
   [ -z "$output" ]
-  [ ! -e "$CAST_TIME_STATE_DIR/../../../../etc/passwd" ]
+
+  # The separators were REPLACED, not interpreted: the state file is a single
+  # flat entry whose name still carries the sanitised payload.
+  # (Do NOT assert on a resolved path like "$STATE_DIR/../../../../etc/passwd" —
+  # that clamps at / and tests whether /etc/passwd exists, not what this hook did.)
+  # `wc -l` on empty output still reports 1, so count with find, not echo.
+  run bash -c "find '$CAST_TIME_STATE_DIR' -maxdepth 1 -type f | wc -l | tr -d ' '"
+  [ "$output" = "1" ]
+  run bash -c "find '$CAST_TIME_STATE_DIR' -maxdepth 1 -type f -exec basename {} ';'"
+  [[ "$output" == *"etc_passwd"* ]]
+  [[ "$output" != *"/"* ]]
 }
